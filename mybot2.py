@@ -3,6 +3,14 @@ from telegram.ext import *
 from bs4 import BeautifulSoup
 import requests
 import csv
+import os.path
+
+
+def send_document_file(bot, update):
+    if os.path.exists('tweets_file.csv'):
+        bot.send_document(chat_id=update.message.chat_id, document=open('tweets_file.csv', 'rb'))
+    else:
+        print("no fichero no existe")
 
 
 def getInfoFllw(profile):
@@ -63,6 +71,13 @@ def listener_twit(bot, update, args):
     bot.sendMessage(chat_id=update.message.chat_id, text=message)
     for x in twit_text:
         bot.sendMessage(chat_id=update.message.chat_id, text=x)
+        with open('tweets_file.csv', 'a') as csvFile:
+            writer = csv.writer(csvFile)
+            writer.writerow(["Profile", "tweets"])
+            writer.writerow([prof, x])
+        csvFile.close()
+    send_document_file(bot, update)
+
 
 
 def listener(bot, update, args):
@@ -79,10 +94,20 @@ def listener(bot, update, args):
 def listener_fllow(bot, update, args):
     prof = listener(bot, update, args)
     result = getInfoFllw(prof)
-    bot.sendMessage(chat_id=update.message.chat_id, text=("total amount of followers: ",result))
-    twit_file = csv.writer(open("followers_file.csv", "w"))
-    twit_file.writerow(["Profile", "followers"])
-    twit_file.writerow([prof, result])
+    chatID = update.message.chat_id
+    bot.sendMessage(chat_id=chatID, text=("total amount of followers: ", result))
+
+    with open('followers_file.csv', 'a') as csvFile:
+        writer = csv.writer(csvFile)
+        writer.writerow(["Profile", "followers"])
+        writer.writerow([prof, result])
+
+    csvFile.close()
+
+    """if os.path.exists('followers_file.csv'):
+        bot.send_document(chat_id=chatID, document=open('followers_file.csv', 'rb'))
+    else:
+        print("no existe")"""
 
 
 def listenerT(bot, update, args):
@@ -135,10 +160,12 @@ def main(bot_token):
     #listener_handler = MessageHandler(Filters.text, listenerTwi)
     add_handler_Fllw = CommandHandler('followers', listener_fllow, pass_args=True)
     add_handler_Twi = CommandHandler('tweets', listener_twit, pass_args=True)
+    #add_handler_test = CommandHandler('test', send_document_file, pass_args=False)
 
     # Add the handlers to the bot
     dispatcher.add_handler(add_handler_Fllw)
     dispatcher.add_handler(add_handler_Twi)
+    #dispatcher.add_handler(add_handler_test)
 
     # Starting the bot
     updater.start_polling()
