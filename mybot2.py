@@ -18,11 +18,11 @@ def getInfoFllw(profile):
         follow_box = bs.find('li', {'class': 'ProfileNav-item ProfileNav-item--followers'})
         followers = follow_box.find('a').find('span', {'class': 'ProfileNav-value'})
         fllw = followers.get('data-count')
-        #result = "Followers for user " + profile + ": " + fllw + " users"
+        # result = "Followers for user " + profile + ": " + fllw + " users"
         return fllw
     except:
         print("Exception in user code:")
-        print('-' * 60) 
+        print('-' * 60)
         traceback.print_exc(file=sys.stdout)
         print('-' * 60)
 
@@ -34,7 +34,7 @@ def getInfoTwi(profile):
         follow_box = bs.find('li', {'class': 'ProfileNav-item ProfileNav-item--tweets is-active'})
         followers = follow_box.find('a').find('span', {'class': 'ProfileNav-value'})
         Twit = followers.get('data-count')
-        #result = "Followers for user " + profile + ": " + fllw + " users"
+        # result = "Followers for user " + profile + ": " + fllw + " users"
         return Twit
     except:
         print("Exception in user code:")
@@ -66,19 +66,28 @@ def listener_twit(bot, update, args):
     count_twit = getInfoTwi(prof)
     message = "Tweets for user " + prof + ": " + count_twit + " Tweet"
     bot.sendMessage(chat_id=update.message.chat_id, text=message)
+    countMsg = 0
+    if not os.path.exists('tweets_file.csv'):
+        with open('tweets_file.csv', 'a+') as f:
+            writer = csv.writer(f)
+            writer.writerow(["Profile", "followers"])
+            f.close()
+
     for i in twit_text:
         try:
-            with open('tweets_file.csv', 'a') as csvFile:
+            with open('tweets_file.csv', 'a', newline='') as csvFile:
                 writer = csv.writer(csvFile)
                 writer.writerow([prof, i])
+                countMsg = countMsg + 1
+                csvFile.close()
         except:
-            print("caracteres no soportados")
-            bot.sendMessage(chat_id=update.message.chat_id, text="caracteres no soportados")
+            print("Unknown error, check your file for possible corrupted or invalid data")
+            bot.sendMessage(chat_id=update.message.chat_id, text="Unknown error, check your file for possible corrupted"
+                                                                 "or invalid data")
             pass
-        bot.sendMessage(chat_id=update.message.chat_id, text=i)
-    csvFile.close()
+        if countMsg < 6:
+            bot.sendMessage(chat_id=update.message.chat_id, text=i)
     send_document_file(bot, update)
-
 
 
 def listener(bot, update, args):
@@ -87,7 +96,7 @@ def listener(bot, update, args):
     if "twitter.com" in profile:
         message2 = profile.split("/")
         for i in range(len(message2)):
-            if i+1 == len(message2):
+            if i + 1 == len(message2):
                 profile = message2[i]
     return profile
 
@@ -133,7 +142,6 @@ def listenerT(bot, update, args):
     result = getInfoFllw(profile)
     bot.sendMessage(chat_id=update.message.chat_id, text=result)"""
 
-
 """def listenerTwi(bot, update, args):
     bot.sendMessage(chat_id=update.message.chat_id, text="Reading!")
     profile = str(args[0])
@@ -157,9 +165,8 @@ def main(bot_token):
     updater = Updater(token=bot_token)
     dispatcher = updater.dispatcher
 
-
     # Other handlers
-    #listener_handler = MessageHandler(Filters.text, listenerTwi)
+    # listener_handler = MessageHandler(Filters.text, listenerTwi)
     add_handler_Fllw = CommandHandler('followers', listener_fllow, pass_args=True)
     add_handler_Twi = CommandHandler('tweets', listener_twit, pass_args=True)
     add_handler_test = CommandHandler('test', send_document_file, pass_args=False)
@@ -180,4 +187,3 @@ if __name__ == "__main__":
 
 while True:
     pass
-
