@@ -9,8 +9,6 @@ import os.path
 def send_document_file(bot, update):
     if os.path.exists('tweets_file.csv'):
         bot.send_document(chat_id=update.message.chat_id, document=open('tweets_file.csv', 'rb'))
-    else:
-        print("no fichero no existe")
 
 
 def getInfoFllw(profile):
@@ -51,9 +49,8 @@ def getTextTwit(profile):
     bs = BeautifulSoup(temp.text, 'lxml')
     try:
         twit_box = bs.find_all('li', {'class': 'js-stream-item stream-item stream-item'})
-        for box in range(len(twit_box)-15):
-            txt = twit_box[box].find('p', {'class': 'TweetTextSize TweetTextSize--normal '
-                                                    'js-tweet-text tweet-text'}).text
+        for box in twit_box:
+            txt = box.find('p', {'class': 'TweetTextSize TweetTextSize--normal js-tweet-text tweet-text'}).text
             array.append(txt)
         return array
     except:
@@ -69,13 +66,17 @@ def listener_twit(bot, update, args):
     count_twit = getInfoTwi(prof)
     message = "Tweets for user " + prof + ": " + count_twit + " Tweet"
     bot.sendMessage(chat_id=update.message.chat_id, text=message)
-    for x in twit_text:
-        bot.sendMessage(chat_id=update.message.chat_id, text=x)
-        with open('tweets_file.csv', 'a') as csvFile:
-            writer = csv.writer(csvFile)
-            writer.writerow(["Profile", "tweets"])
-            writer.writerow([prof, x])
-        csvFile.close()
+    for i in twit_text:
+        try:
+            with open('tweets_file.csv', 'a') as csvFile:
+                writer = csv.writer(csvFile)
+                writer.writerow([prof, i])
+        except:
+            print("caracteres no soportados")
+            bot.sendMessage(chat_id=update.message.chat_id, text="caracteres no soportados")
+            pass
+        bot.sendMessage(chat_id=update.message.chat_id, text=i)
+    csvFile.close()
     send_document_file(bot, update)
 
 
@@ -156,16 +157,17 @@ def main(bot_token):
     updater = Updater(token=bot_token)
     dispatcher = updater.dispatcher
 
+
     # Other handlers
     #listener_handler = MessageHandler(Filters.text, listenerTwi)
     add_handler_Fllw = CommandHandler('followers', listener_fllow, pass_args=True)
     add_handler_Twi = CommandHandler('tweets', listener_twit, pass_args=True)
-    #add_handler_test = CommandHandler('test', send_document_file, pass_args=False)
+    add_handler_test = CommandHandler('test', send_document_file, pass_args=False)
 
     # Add the handlers to the bot
     dispatcher.add_handler(add_handler_Fllw)
     dispatcher.add_handler(add_handler_Twi)
-    #dispatcher.add_handler(add_handler_test)
+    dispatcher.add_handler(add_handler_test)
 
     # Starting the bot
     updater.start_polling()
