@@ -4,6 +4,65 @@ from bs4 import BeautifulSoup
 import requests
 import csv
 import os.path
+import time
+from twython import Twython
+
+
+consumer_key='dO2MDv4LmVZQCkXlTDuvC1Vlf'
+consumer_secret='vtdN4SemMWIgGKuHyweXsGBzl4mY5cIa6kYybBIr09ZHhc3qzJ'
+access_token_key='1110975440276082688-yNUp3UtVIWVxfYtm68NgEyveXqF1vK'
+access_token_secret='TXrNj3cp1AFI5dEYtpnRzMNxV82rr7C2CeuWtRgJXG8Tc'
+
+t_twython = Twython(app_key=consumer_key,
+            app_secret=consumer_secret,
+            oauth_token=access_token_key,
+            oauth_token_secret=access_token_secret)
+
+
+def get_user_timeline(screen_name, max_id=None, collection=[]):
+    # print("*****************************************get_user_timeline*************************************************")
+    global collection_
+    # print("**************global collection_******************************")
+    try:
+
+        user_timeline = t_twython.get_user_timeline(screen_name=screen_name, count=100, max_id=max_id)
+        # data = pd.DataFrame(user_timeline)
+        # data.to_csv("get_user_timeline_user_timeline.csv")
+        # print("*******************************************************************************************************")
+        # print("***************user_timeline", user_timeline, "*********************************")
+        # print("*******************************************************************************************************")
+
+    except Exception as e:
+
+        print(e)
+
+        return collection
+
+    collection_ = collection + user_timeline
+    # data = pd.DataFrame(collection)
+    # data.to_csv("get_user_timeline_collection.csv")
+
+    # print("***********collection_**------------------")
+    # print("***********collection_**------------------", collection)
+
+    print(
+        "Recursively searching... S:{}-E:{}-{}".format(user_timeline[0]["created_at"], user_timeline[-1]["created_at"],
+                                                       len(collection_)))
+    # print("*************************************format(user_timeline[0]", format(user_timeline[0]), "*****************")
+    # print("*************************************format(user_timeline[-1]", format(user_timeline[-1]), "***************")
+    # print("*************************************len(collection_)", len(collection_), "********************************")
+
+    if max_id == user_timeline[-1]["id"]:
+
+        print("Recursively process has ended... TOTAL ELEMENTS: {}".format(len(collection_)))
+
+        return collection_
+
+    else:
+
+        get_user_timeline(screen_name, max_id=user_timeline[-1]["id"], collection=collection_)
+
+    return collection_
 
 
 def send_document_file(bot, update):
@@ -47,11 +106,16 @@ def getTextTwit(profile):
     array = []
     temp = requests.get('https://twitter.com/' + profile)
     bs = BeautifulSoup(temp.text, 'lxml')
+    dic = {}
     try:
         twit_box = bs.find_all('li', {'class': 'js-stream-item stream-item stream-item'})
         for box in twit_box:
             txt = box.find('p', {'class': 'TweetTextSize TweetTextSize--normal js-tweet-text tweet-text'}).text
+            date_box = box.find('a', {'class': 'tweet-timestamp js-permalink js-nav js-tooltip'})
+            date_info = date_box.find('span', {'class': '_timestamp js-short-timestamp'})
+            date = date_info.get('data-time')
             array.append(txt)
+            array.append(date)
         return array
     except:
         print("Exception in user code:")
@@ -62,32 +126,45 @@ def getTextTwit(profile):
 
 def listener_twit(bot, update, args):
     prof = listener(bot, update, args)
-    twit_text = getTextTwit(prof)
     count_twit = getInfoTwi(prof)
     message = "Tweets for user " + prof + ": " + count_twit + " Tweet"
     bot.sendMessage(chat_id=update.message.chat_id, text=message)
     countMsg = 0
-    if not os.path.exists('tweets_file.csv'):
-        with open('tweets_file.csv', 'a+') as f:
-            writer = csv.writer(f)
-            writer.writerow(["Profile", "followers"])
-            f.close()
+    temp = requests.get('https://twitter.com/' + prof)
+    bs = BeautifulSoup(temp.text, 'lxml')
+    try:
+        twit_box = bs.find_all('li', {'class': 'js-stream-item stream-item stream-item'})
+        for box in twit_box:
+            txt = box.find('p', {'class': 'TweetTextSize TweetTextSize--normal js-tweet-text tweet-text'}).text
+            date_box = box.find('a', {'class': 'tweet-timestamp js-permalink js-nav js-tooltip'})
+            date_info = date_box.find('span', {'class': '_timestamp js-short-timestamp'})
+            date = date_info.get('data-time')
+            if not os.path.exists('tweets_file.csv'):
+                with open('tweets_file.csv', 'a+', newline='') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(["Date", "Profile", "Tweets"])
+                    f.close()
+            try:
+                with open('tweets_file.csv', 'a', newline='') as csvFile:
+                    writer = csv.writer(csvFile)
+                    writer.writerow([time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(int(date))), prof, txt])
+                    countMsg = countMsg + 1
+                    csvFile.close()
+            except:
+                print("Unknown error, check your file for possible corrupted or invalid data")
+                bot.sendMessage(chat_id=update.message.chat_id,
+                                text="Unknown error, check your file for possible corrupted"
+                                     "or invalid data")
+                pass
+            if countMsg < 6:
+                bot.sendMessage(chat_id=update.message.chat_id, text=txt)
+        send_document_file(bot, update)
+    except:
+        print("Exception in user code:")
+        print('-' * 60)
+        traceback.print_exc(file=sys.stdout)
+        print('-' * 60)
 
-    for i in twit_text:
-        try:
-            with open('tweets_file.csv', 'a', newline='') as csvFile:
-                writer = csv.writer(csvFile)
-                writer.writerow([prof, i])
-                countMsg = countMsg + 1
-                csvFile.close()
-        except:
-            print("Unknown error, check your file for possible corrupted or invalid data")
-            bot.sendMessage(chat_id=update.message.chat_id, text="Unknown error, check your file for possible corrupted"
-                                                                 "or invalid data")
-            pass
-        if countMsg < 6:
-            bot.sendMessage(chat_id=update.message.chat_id, text=i)
-    send_document_file(bot, update)
 
 
 def listener(bot, update, args):
@@ -171,10 +248,12 @@ def main(bot_token):
     add_handler_Twi = CommandHandler('tweets', listener_twit, pass_args=True)
     add_handler_test = CommandHandler('test', send_document_file, pass_args=False)
 
+
     # Add the handlers to the bot
     dispatcher.add_handler(add_handler_Fllw)
     dispatcher.add_handler(add_handler_Twi)
     dispatcher.add_handler(add_handler_test)
+
 
     # Starting the bot
     updater.start_polling()
