@@ -1,11 +1,15 @@
 import telegram
 from telegram.ext import *
+from telegram import ReplyKeyboardMarkup
 from bs4 import BeautifulSoup
 import requests
 import csv
 import os.path
 import time
 from twython import Twython
+from datetime import datetime
+import pandas as pd
+from dateutil.parser import parse
 
 
 consumer_key='dO2MDv4LmVZQCkXlTDuvC1Vlf'
@@ -19,55 +23,92 @@ t_twython = Twython(app_key=consumer_key,
             oauth_token_secret=access_token_secret)
 
 
+
 def get_user_timeline(screen_name, max_id=None, collection=[]):
-    # print("*****************************************get_user_timeline*************************************************")
     global collection_
-    # print("**************global collection_******************************")
     try:
-
         user_timeline = t_twython.get_user_timeline(screen_name=screen_name, count=100, max_id=max_id)
-        # data = pd.DataFrame(user_timeline)
-        # data.to_csv("get_user_timeline_user_timeline.csv")
-        # print("*******************************************************************************************************")
-        # print("***************user_timeline", user_timeline, "*********************************")
-        # print("*******************************************************************************************************")
-
     except Exception as e:
-
         print(e)
-
         return collection
-
     collection_ = collection + user_timeline
-    # data = pd.DataFrame(collection)
-    # data.to_csv("get_user_timeline_collection.csv")
-
-    # print("***********collection_**------------------")
-    # print("***********collection_**------------------", collection)
-
+    #data = pd.DataFrame(collection)
+    #data.to_csv("tweets_date_rank.csv")
     print(
         "Recursively searching... S:{}-E:{}-{}".format(user_timeline[0]["created_at"], user_timeline[-1]["created_at"],
                                                        len(collection_)))
-    # print("*************************************format(user_timeline[0]", format(user_timeline[0]), "*****************")
-    # print("*************************************format(user_timeline[-1]", format(user_timeline[-1]), "***************")
-    # print("*************************************len(collection_)", len(collection_), "********************************")
-
     if max_id == user_timeline[-1]["id"]:
-
         print("Recursively process has ended... TOTAL ELEMENTS: {}".format(len(collection_)))
-
         return collection_
-
     else:
-
         get_user_timeline(screen_name, max_id=user_timeline[-1]["id"], collection=collection_)
-
     return collection_
 
 
+def date_format(date):
+    print("date_format entro")
+    dt = parse(date)
+    print(dt)
+    # datetime.datetime(2010, 2, 15, 0, 0)
+    valor = dt.strftime('%d/%m/%Y')
+    print(valor)
+    # 15/02/2010
+
+
+def get_info(bot, update, args):
+    profile = listener(bot, update, args)
+    info = get_user_timeline(profile, max_id=None)
+    data = pd.DataFrame(info)
+    data_top = data.head(160)
+    data_top.to_csv("tweets_date_rank.csv")
+    print(info)
+    send_document_file(bot, update)
+
+
+def get_date_rank(bot, update, args):
+    bandera = False
+    profile = listener(bot, update, args)
+    info = get_user_timeline(profile, max_id=None)
+    date = listener_date(bot, update, args)
+    #date = info[12]["created_at"]
+    #print(new_date)
+    for i in info:
+        fecha = date_format(i["created_at"])
+        if fecha == date:
+            bandera = True
+            break
+    if bandera == True:
+        if not os.path.exists('tweets_date_rank.csv'):
+            with open('tweets_date_rank.csv', 'a+', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(["Date", "Profile", "Tweets"])
+                f.close()
+        for i in info:
+            fecha = date_format(i["created_at"])
+            if fecha != date:
+                try:
+                    with open('tweets_date_rank.csv', 'a', newline='') as csvFile:
+                        writer = csv.writer(csvFile)
+                        writer.writerow([i["created_at"], profile, i["text"]])
+                        csvFile.close()
+                        print(profile, i["created_at"], i["text"])
+                except:
+                    print("Unknown error, check your file for possible corrupted or invalid data")
+                    bot.sendMessage(chat_id=update.message.chat_id,
+                                    text="Unknown error, check your file for possible corrupted"
+                                         "or invalid data")
+                    pass
+            else:
+                break
+    else:
+        print("fecha no existente o fuera del rango de creacion del perfil del usuario")
+    #data = pd.DataFrame()
+    #data.to_csv("get_date_rank_info.csv")
+
+
 def send_document_file(bot, update):
-    if os.path.exists('tweets_file.csv'):
-        bot.send_document(chat_id=update.message.chat_id, document=open('tweets_file.csv', 'rb'))
+    if os.path.exists('tweets_date_rank.csv'):
+        bot.sendDocument(chat_id=update.message.chat_id, document=open('tweets_date_rank.csv', 'rb'))
 
 
 def getInfoFllw(profile):
@@ -166,7 +207,6 @@ def listener_twit(bot, update, args):
         print('-' * 60)
 
 
-
 def listener(bot, update, args):
     bot.sendMessage(chat_id=update.message.chat_id, text="Reading!")
     profile = str(args[0])
@@ -176,6 +216,17 @@ def listener(bot, update, args):
             if i + 1 == len(message2):
                 profile = message2[i]
     return profile
+
+
+def listener_date(bot, update, args):
+    print("entro")
+    #bot.sendMessage(chat_id=update.message.chat_id, text="Reading!")
+    profile = str(args[0])
+    print(profile)
+    message2, date = profile.split("-")
+    print(message2)
+    print(date)
+    return str(date)
 
 
 def listener_fllow(bot, update, args):
@@ -247,12 +298,16 @@ def main(bot_token):
     add_handler_Fllw = CommandHandler('followers', listener_fllow, pass_args=True)
     add_handler_Twi = CommandHandler('tweets', listener_twit, pass_args=True)
     add_handler_test = CommandHandler('test', send_document_file, pass_args=False)
+    add_handler_date = CommandHandler('info', get_info, pass_args=True)
+    add_handler_csv = CommandHandler('csv', send_document_file, pass_args=False)
 
 
     # Add the handlers to the bot
     dispatcher.add_handler(add_handler_Fllw)
     dispatcher.add_handler(add_handler_Twi)
     dispatcher.add_handler(add_handler_test)
+    dispatcher.add_handler(add_handler_date)
+    dispatcher.add_handler(add_handler_csv)
 
 
     # Starting the bot
